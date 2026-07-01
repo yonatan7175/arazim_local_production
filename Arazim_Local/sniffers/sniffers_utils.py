@@ -30,3 +30,18 @@ def sniff_assembled(filter, iface, prn):
     sniff(
         filter=filter, iface=iface, prn=lambda pkt: handle_fragmented(prn, pkt), store=0
     )
+
+
+def make_async_sniffer(filter, iface, prn):
+    """
+    Build (but do not start) an AsyncSniffer that reassembles fragments before
+    invoking ``prn``. Because it runs on its own thread and exposes start()/stop(),
+    it can be shut down cleanly from another thread on a signal - unlike the
+    blocking sniff() above, which cannot be interrupted while idle.
+    """
+    return AsyncSniffer(
+        filter=filter,
+        iface=iface,
+        prn=lambda pkt: handle_fragmented(prn, pkt),
+        store=0,
+    )
