@@ -16,13 +16,15 @@ def real_ip_to_local(ip):
         raise ValueError("Invalid IP")
     return "127" + ip[ind:]
 
-class Sniffer:
-    def __init__(self, our_ip, default_gateway, sniff_iface, lo_iface):
+class In_Sniffer:
+    tun_fd = None
+    def __init__(self, our_ip, default_gateway, sniff_iface, lo_iface, tun_fd):
         self.our_ip = our_ip
         self.default_gateway = default_gateway
         self.sniff_iface = sniff_iface
         self.lo_iface = lo_iface
         self.bpf_filter = f"dst host {our_ip} and src {default_gateway} and ip"
+        In_Sniffer.tun_fd = tun_fd
 
     def start_sniff(self):
         """
@@ -42,38 +44,22 @@ class Sniffer:
         Takes an ICMP echo packet, checks that the magic is there,
         and injects the "raw" part into loopback.
         """
+        tun_fd = In_Sniffer.tun_fd
         try:
             # make sure its our magic
             if pkt[Raw].load[: len(PAYLOAD_MAGIC)] != PAYLOAD_MAGIC:
                 return
             # get the raw, without magic (og packet)
             decapsulated = IP(pkt[Raw].load[len(PAYLOAD_MAGIC) :])
-            # change src and dst to allow sending in lo
-            decapsulated[IP].src = real_ip_to_local(decapsulated[IP].src)
+            #del decapsulated[IP].chksum
+            #del decapsulated[IP].len
+            #if TCP in decapsulated:
+             #   del decapsulated[TCP].chksum
 
-            decapsulated[IP].dst = "127.0.0.1"
-            # delete checksums to force recalculation, and send :-)
-            del decapsulated[IP].chksum
-            del decapsulated[IP].len
-            if TCP in decapsulated:
-                del decapsulated[TCP].chksum
-            send(decapsulated, verbose=0, iface=self.lo_iface)
+            os.write(tun_fd, bytes(decapsulated))
         except Exception as e:
             print(e)
 
-
-def main():
-    stats = network_stats.NetworkStats.get_stats()
-    if stats is None:
-        print("Networks stats failed, closing sniffer")
-        exit(0)
-    in_sniffer = Sniffer(
-        stats.my_ip, stats.router_ip, stats.default_device, stats.loopback_device
-    )
-    in_sniffer.start_sniff()
-
-
+            
 if __name__ == "__main__":
-    if os.geteuid() != 0:
-        sys.exit("Please run as root/sudo.")
-    main()
+    pass

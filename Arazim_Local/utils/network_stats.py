@@ -10,6 +10,7 @@ class NetworkStats:
     def __init__(self):
         self.my_ip, self.router_ip, self.default_device = self._get_ips_and_def_device()
         self.subnet_mask = self._get_subnet_mask(self.router_ip)
+        self.subnet_cidr = ipaddress.IPv4Network(f"0.0.0.0/{self.subnet_mask}").prefixlen
         self.network = ipaddress.IPv4Network(
             f"{self.my_ip}/{self.subnet_mask}", strict=False
         )
