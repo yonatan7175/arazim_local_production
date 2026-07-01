@@ -21,8 +21,7 @@ import os
 import sys
 import time
 import queue
-import struct
-import fcntl
+import select
 import logging
 import threading
 import subprocess
@@ -31,6 +30,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "
 
 from scapy.all import Raw
 from scapy.layers.inet import IP, ICMP
+from scapy.layers.l2 import Ether
 
 import in_sniffer
 import out_sniffer
@@ -49,6 +49,8 @@ GATEWAY = "10.9.9.254"
 MY_IP = "10.9.9.1"
 PEER_IP = "10.9.9.2"
 TUN_CIDR = f"{MY_IP}/24"
+ROUTER_MAC = "00:11:22:33:44:55"
+MY_MAC = "66:77:88:99:aa:bb"
 
 
 class TestFailure(AssertionError):
@@ -69,16 +71,19 @@ def test_codec_roundtrip():
 
     # capture whatever the out-sniffer would put on the wire
     sent = {}
-    original_send = out_sniffer.send
-    out_sniffer.send = lambda pkt, **kw: sent.setdefault("pkt", pkt)
+    original_sendp = out_sniffer.sendp
+    out_sniffer.sendp = lambda pkt, **kw: sent.setdefault("pkt", pkt)
     try:
-        out = Out_Sniffer(MY_IP, "255.255.255.0", MY_IP, "lo", GATEWAY, tun_fd=-1)
+        out = Out_Sniffer(MY_IP, "255.255.255.0", MY_IP, "lo", GATEWAY,
+                          ROUTER_MAC, MY_MAC, tun_fd=-1)
         out.encapsulate_and_send(IP(inner_bytes))
     finally:
-        out_sniffer.send = original_send
+        out_sniffer.sendp = original_sendp
 
     wrapper = sent.get("pkt")
-    check(wrapper is not None, "out-sniffer never called send()")
+    check(wrapper is not None, "out-sniffer never called sendp()")
+    check(Ether in wrapper and wrapper[Ether].dst == ROUTER_MAC,
+          "wrapper is missing the Ethernet header addressed to the router MAC")
     check(ICMP in wrapper and wrapper[ICMP].type == 8, "wrapper is not an ICMP echo request")
     check(wrapper[IP].dst == GATEWAY, f"wrapper dst should be the gateway, got {wrapper[IP].dst}")
     check(wrapper[IP].src == PEER_IP, f"wrapper src should be the peer, got {wrapper[IP].src}")
@@ -89,7 +94,12 @@ def test_codec_roundtrip():
     read_fd, write_fd = os.pipe()
     try:
         insn = In_Sniffer(PEER_IP, GATEWAY, "lo", tun_fd=write_fd)
-        insn.decapsulate_and_inject(IP(bytes(wrapper)))
+        # re-parse from raw bytes as the sniffer sees it on the wire (with the
+        # Ethernet header), then decapsulate into the pipe standing in for TUN
+        insn.decapsulate_and_inject(Ether(bytes(wrapper)))
+        # guard the read so a decap failure fails loudly instead of blocking
+        readable, _, _ = select.select([read_fd], [], [], 2.0)
+        check(read_fd in readable, "decapsulate_and_inject wrote nothing to the TUN")
         recovered = os.read(read_fd, 65535)
     finally:
         os.close(read_fd)
@@ -118,11 +128,12 @@ def test_ping_over_tun():
     subprocess.run(["ip", "route", "replace", f"{PEER_IP}/32", "dev", name], check=True)
 
     captured = queue.Queue()
-    original_send = out_sniffer.send
-    out_sniffer.send = lambda pkt, **kw: captured.put(pkt)
+    original_sendp = out_sniffer.sendp
+    out_sniffer.sendp = lambda pkt, **kw: captured.put(pkt)
 
     stop_event = threading.Event()
-    out = Out_Sniffer(MY_IP, "255.255.255.0", MY_IP, name, GATEWAY, tun_fd)
+    out = Out_Sniffer(MY_IP, "255.255.255.0", MY_IP, name, GATEWAY,
+                      ROUTER_MAC, MY_MAC, tun_fd)
     worker = threading.Thread(target=out.start_sniff, args=(stop_event,), name="out-test")
     worker.start()
     try:
@@ -142,7 +153,7 @@ def test_ping_over_tun():
     finally:
         stop_event.set()
         worker.join(timeout=3)
-        out_sniffer.send = original_send
+        out_sniffer.sendp = original_sendp
         subprocess.run(["ip", "route", "del", f"{PEER_IP}/32", "dev", name], check=False)
         os.close(tun_fd)
 
@@ -176,7 +187,8 @@ def test_clean_shutdown():
     stop_event = threading.Event()
 
     insn = In_Sniffer(MY_IP, GATEWAY, name, tun_fd)
-    out = Out_Sniffer(MY_IP, "255.255.255.0", MY_IP, name, GATEWAY, tun_fd)
+    out = Out_Sniffer(MY_IP, "255.255.255.0", MY_IP, name, GATEWAY,
+                      ROUTER_MAC, MY_MAC, tun_fd)
     threads = [
         threading.Thread(target=insn.start_sniff, args=(stop_event,), name="in-test"),
         threading.Thread(target=out.start_sniff, args=(stop_event,), name="out-test"),

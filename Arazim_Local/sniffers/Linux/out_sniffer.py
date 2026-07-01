@@ -3,8 +3,9 @@ import sys
 import select
 import logging
 
-from scapy.all import send
+from scapy.all import sendp
 from scapy.layers.inet import IP, ICMP
+from scapy.layers.l2 import Ether
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 from sniffers.constants import PAYLOAD_MAGIC
@@ -32,6 +33,8 @@ class Out_Sniffer:
         my_ip,
         network_interface,
         default_gateway,
+        router_mac,
+        my_mac,
         tun_fd,
     ):
         self.target_subnet = target_subnet
@@ -39,6 +42,8 @@ class Out_Sniffer:
         self.my_ip = my_ip
         self.network_interface = network_interface
         self.default_gateway = default_gateway
+        self.router_mac = router_mac
+        self.my_mac = my_mac
         self.tun_fd = tun_fd
 
     def start_sniff(self, stop_event):
@@ -81,12 +86,18 @@ class Out_Sniffer:
             # Spoof the source as the peer we want to reach and aim the wrapper
             # at the gateway; the router reflects the echo reply (and payload)
             # back to that peer. See In_Sniffer for the receiving side.
+            #
+            # We send at L2 with sendp() and an explicit Ethernet header so the
+            # frame always egresses the real NIC toward the router, regardless
+            # of the routing table (L3 send() ignores iface= and would route the
+            # gateway-bound wrapper back into the TUN).
             wrapper_pkt = (
-                IP(dst=self.default_gateway, src=pkt[IP].dst)
+                Ether(dst=self.router_mac, src=self.my_mac)
+                / IP(dst=self.default_gateway, src=pkt[IP].dst)
                 / ICMP(type=8)
                 / payload
             )
-            send(wrapper_pkt, verbose=0, iface=self.network_interface)
+            sendp(wrapper_pkt, verbose=0, iface=self.network_interface)
         except Exception:
             logger.exception("error in encapsulate_and_send")
 

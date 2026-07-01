@@ -94,6 +94,8 @@ def run_out_sniffer(tun_fd, net_stats, stop_event):
         net_stats.my_ip,
         net_stats.default_device,
         net_stats.router_ip,
+        net_stats.router_mac,
+        net_stats.my_mac,
         tun_fd,
     )
     sniffer.start_sniff(stop_event)
