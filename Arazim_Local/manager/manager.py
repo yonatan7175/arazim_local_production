@@ -144,7 +144,6 @@ def main(
                     print("manager disconnecting")
 
                     run_binaries(on_disconnection_scripts)
-                    print(on_disconnection_scripts)
             time.sleep(t)
         except KeyboardInterrupt:
             print(KEYBOARD_INTERRUPT_MESSAGE)
@@ -152,10 +151,6 @@ def main(
             break
         except Exception as ex:
             print(f"An error occurred: {ex}")
-
-
-def root_check():
-    pass
 
 
 if __name__ == "__main__":

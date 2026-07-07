@@ -16,3 +16,6 @@ def enable_rst():
 
 def on_connect():
     enable_rst()
+
+if __name__ == "__main__":
+    pass

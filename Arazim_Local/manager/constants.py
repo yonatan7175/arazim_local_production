@@ -46,24 +46,29 @@ the format is a list of lists, each list is a binary to run where the first elem
 is the binary path and the elements after are its arguments
 """
 CURRENT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
-BACKGROUND_BINARIES_TO_RUN = [
-    [
-        PYTHON_BINARY,
-        os.path.join(CURRENT_DIRECTORY, "..", "sniffers", THIS_OS, "in_sniffer.py"),
-    ],
-    [
-        PYTHON_BINARY,
-        os.path.join(CURRENT_DIRECTORY, "..", "sniffers", THIS_OS, "out_sniffer.py"),
-    ],
-]
-
 if THIS_OS == WINDOWS:
-    BACKGROUND_BINARIES_TO_RUN.append(
+    BACKGROUND_BINARIES_TO_RUN = [
         [
             PYTHON_BINARY,
-            os.path.join(CURRENT_DIRECTORY, "..", "sniffers", THIS_OS, "arp_server.py"),
+            os.path.join(CURRENT_DIRECTORY, "..", "sniffers", THIS_OS, "in_sniffer.py"),
+        ],
+        [
+            PYTHON_BINARY,
+            os.path.join(CURRENT_DIRECTORY, "..", "sniffers", THIS_OS, "out_sniffer.py"),
+        ],
+        [
+                PYTHON_BINARY,
+                os.path.join(CURRENT_DIRECTORY, "..", "sniffers", THIS_OS, "arp_server.py"),
         ]
-    )
+    ]
+
+if THIS_OS == LINUX:
+    BACKGROUND_BINARIES_TO_RUN = [
+        [
+            PYTHON_BINARY,
+            os.path.join(CURRENT_DIRECTORY, "..", "sniffers", THIS_OS, "in_and_out_sniffers.py"),
+        ]
+    ]
 
 ON_CONNECTION_SCRIPTS = [
     [
