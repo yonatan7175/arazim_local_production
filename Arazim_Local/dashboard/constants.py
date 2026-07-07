@@ -9,8 +9,6 @@ WINDOWS_X86 = "windows_x86"
 MAC_OS = "macos"
 LINUX_OS = "linux"
 UNKNOWN_OS = "unknown"
-SCHEDULERS_DIR = "Schedulers"
-DURATION = 1
 
 OS_TO_PROGRAM_FILES = {
     WINDOWS_X64: PROGRAM_FILES_X64,

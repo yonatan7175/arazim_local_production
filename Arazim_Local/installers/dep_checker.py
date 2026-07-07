@@ -23,7 +23,7 @@ def has_dependencies(platform) -> bool:
         dependencies = get_dependencies(dependencies_file)
     except FileNotFoundError as e:
         print(e)
-        return e
+        return False
     
     missing = []
     for lib in dependencies:

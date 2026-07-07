@@ -9,10 +9,8 @@ WINDOWS_X86 = "windows_x86"
 MAC_OS = "macos"
 LINUX_OS = "linux"
 UNKNOWN_OS = "unknown"
-SCHEDULERS_DIR = "Schedulers"
-DURATION = 15
 
-DASHBOARD_RELATIVE_TO_BASE_DIR = "./dashboard/dashboard.py"
+DASHBOARD_RELATIVE_TO_BASE_DIR = "./dashboard/dashboard.pyw"
 OS_TO_PROGRAM_FILES = {
     WINDOWS_X64: PROGRAM_FILES_X64,
     WINDOWS_X86: PROGRAM_FILES_X86,
@@ -21,6 +19,10 @@ OS_TO_PROGRAM_FILES = {
 }
 
 RUN_SCRIPT_LINUX = "/bin/bash"
+
+# System-wide launcher installed on Linux so the app can be started by typing
+# `arazim_local` from anywhere (or from the desktop icon).
+LINUX_LAUNCHER_PATH = "/bin/arazim_local"
 
 OS_TO_SCRIPT_NAME = {
     WINDOWS_X64: "windows_x64.bat",

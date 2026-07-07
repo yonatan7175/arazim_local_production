@@ -3,10 +3,38 @@ import psutil
 import json
 
 MANAGER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "manager")
+SNIFFERS_DIR = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "sniffers")
+)
 PATH_TO_RUNNING_BINARIES_FILE = os.path.join(
     MANAGER_DIR, "current_running_binaries.json"
 )
 PATH_TO_IS_CONNECTED_FILE = os.path.join(MANAGER_DIR, "is_connected.txt")
+
+
+def _find_orphan_sniffers():
+    """
+    Find any process whose command line points at our sniffers directory.
+
+    Safety net for kill_manager: if the manager spawned a sniffer in the tiny
+    window before it caught SIGTERM (or was force-killed), that sniffer would
+    otherwise survive as an orphan holding the TUN and tunnelling traffic while
+    the dashboard reports STOPPED. Scoped to our own sniffers dir so it never
+    touches unrelated processes.
+    """
+    found = []
+    for proc in psutil.process_iter(["cmdline"]):
+        try:
+            cmdline = proc.info.get("cmdline") or []
+            if any(
+                isinstance(arg, str)
+                and os.path.normpath(arg).startswith(SNIFFERS_DIR)
+                for arg in cmdline
+            ):
+                found.append(proc)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    return found
 
 
 def is_process_running_by_pid(pid, saved_start_time):
@@ -75,44 +103,64 @@ def kill_manager():
 
     if pid is None:
         print("No manager process recorded.")
+        # Still sweep for orphaned sniffers in case a previous manager died
+        # without recording/cleaning up.
+        _reap([], _find_orphan_sniffers())
         return
 
     try:
         if is_manager_running():
             parent = psutil.Process(pid)
 
-            # 1. Get all children (sniffers, binaries, etc.)
-            # recursive=True finds grandchildren as well
+            # Snapshot children up front as a safety net.
             children = parent.children(recursive=True)
 
             print(f"Terminating manager (PID {pid}) and {len(children)} children...")
 
-            # 2. Terminate children first
-            for child in children:
-                try:
-                    child.terminate()
-                except psutil.NoSuchProcess:
-                    pass
-
-            # 3. Terminate the parent
+            # Terminate the MANAGER FIRST. Its SIGTERM handler stops the
+            # watchdog loop and kills its own sniffers, so it can't respawn a
+            # sniffer after we killed it - the race that used to orphan tunnels
+            # when children were killed before the (still-looping) parent.
             parent.terminate()
+            try:
+                parent.wait(timeout=6)
+            except psutil.TimeoutExpired:
+                print(f"Force killing manager: {parent.pid}")
+                parent.kill()
 
-            # 4. Wait for everything to die
-            gone, alive = psutil.wait_procs(children + [parent], timeout=6)
-
-            # 5. If anything is still alive, use the "nuclear" option
-            for survivor in alive:
-                print(f"Force killing stubborn process: {survivor.pid}")
-                survivor.kill()
+            # Reap anything the manager did not clean up itself, plus any
+            # orphaned sniffer that slipped through the respawn window.
+            _reap(children, _find_orphan_sniffers())
 
             print("Manager and all sub-processes stopped.")
         else:
             print("Manager not running.")
+            _reap([], _find_orphan_sniffers())
 
     except psutil.NoSuchProcess:
         print("Manager process already ended.")
+        _reap([], _find_orphan_sniffers())
     except Exception as e:
         print(f"Error while killing manager: {e}")
+
+
+def _reap(children, orphans):
+    """Terminate (then, if stubborn, kill) the given processes."""
+    targets = list(children) + list(orphans)
+    if not targets:
+        return
+    for proc in targets:
+        try:
+            proc.terminate()
+        except psutil.NoSuchProcess:
+            pass
+    _, alive = psutil.wait_procs(targets, timeout=3)
+    for survivor in alive:
+        print(f"Force killing stubborn process: {survivor.pid}")
+        try:
+            survivor.kill()
+        except psutil.NoSuchProcess:
+            pass
 
 
 def save_is_connected(is_connected):

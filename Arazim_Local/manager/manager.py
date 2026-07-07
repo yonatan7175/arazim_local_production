@@ -14,16 +14,22 @@ from utils.manager_utils import is_manager_running, save_is_connected
 
 
 def signal_handler(scripts, signum, frame):
+    # scripts == [processes, on_disconnection_scripts]. Kill our own sniffers
+    # first so the manager never leaves an orphaned tunnel behind, run the
+    # disconnection scripts, mark ourselves disconnected, then exit.
     for process in scripts[0]:
         kill_process(process)
     run_binaries(scripts[1])
     save_is_connected(False)
-    time.sleep(10)
+    # Keep this well under the killer's grace period (see kill_manager, 6s) so
+    # we exit cleanly on SIGTERM instead of being force-killed mid-shutdown.
+    time.sleep(1)
     sys.exit(0)
 
 
-# Register the signal handlers
-signal.signal(signal.SIGTERM, signal_handler)
+# NOTE: SIGTERM is registered inside main() via functools.partial once the live
+# `processes` list exists - registering the bare 3-arg handler here would be
+# called by the OS with only (signum, frame) and crash with a TypeError.
 
 
 WAS_CONNECTED_TO_G2 = False
@@ -115,8 +121,11 @@ def main(
         return
 
     processes = [None for _ in background_binaries_to_run]
-    # handler_with_args = partial(signal_handler, [processes, on_disconnection_scripts])
-    # signal.signal(signal.SIGTERM, handler_with_args)
+    # Register now that `processes` exists; the closure holds a reference to the
+    # same list main() mutates in place, so the handler always sees the current
+    # sniffer PIDs and can kill them on SIGTERM.
+    handler_with_args = partial(signal_handler, [processes, on_disconnection_scripts])
+    signal.signal(signal.SIGTERM, handler_with_args)
 
     while True:
         try:

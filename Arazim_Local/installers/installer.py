@@ -5,7 +5,7 @@ import subprocess
 import platform
 import ctypes
 from constants import *
-from add_desktop_icon import add_desktop_icon
+from add_desktop_icon import add_desktop_icon, add_linux_bin_launcher
 from dep_checker import has_dependencies
 from installer_utils import get_platform
 
@@ -73,6 +73,8 @@ def main():
         exit(1)
     print(f"Detected platform: {platform}")
     project_dir = set_program_dir(platform)
+    if platform == LINUX_OS:
+        add_linux_bin_launcher(project_dir)
     add_desktop_icon(platform, project_dir)
 
 

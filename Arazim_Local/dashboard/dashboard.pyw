@@ -1,7 +1,15 @@
-#!/usr/bin/env python3
+import os
+
+# Force SDL's X11 video backend before pygame loads. In a Wayland session SDL
+# would otherwise draw window decorations via libdecor -> GTK -> gdk-pixbuf ->
+# glycin, whose out-of-process image loader blocks on session/D-Bus IPC that
+# root can't reach - hanging pygame.display.set_mode() until it's interrupted
+# (Ctrl+C). Since we run the dashboard as root, route through XWayland instead.
+# `setdefault` lets a user still override it from the environment.
+os.environ.setdefault("SDL_VIDEODRIVER", "x11")
+
 import pygame
 import sys
-import os
 import subprocess
 import signal
 import platform
