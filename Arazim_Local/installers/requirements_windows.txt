@@ -1,5 +1,0 @@
-psutil
-pydivert
-pygame
-python_hosts
-scapy

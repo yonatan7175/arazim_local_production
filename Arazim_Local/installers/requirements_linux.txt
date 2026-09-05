@@ -1,4 +1,0 @@
-psutil
-pygame
-python_hosts
-scapy

@@ -67,11 +67,6 @@ def is_subprocess_running(process):
         return False
     return True
 
-
-def find_server():
-    return "Server_placeholder"  # placeholder for actual implementation
-
-
 def watchdog(binary_args, process):
     """
     Docstring for in_g2_logic
@@ -113,7 +108,6 @@ def main(
     background_binaries_to_run,
     on_connection_scripts,
     on_disconnection_scripts,
-    dns_scripts,
     network_name=G2_NETWORK_NAME,
 ):
     if is_manager_running(update=True):
@@ -142,8 +136,6 @@ def main(
                     run_binaries(on_connection_scripts)
                 for i, binary_args in enumerate(background_binaries_to_run):
                     processes[i] = watchdog(binary_args, processes[i])
-                if new_connection:
-                    run_binaries(dns_scripts)
             else:
                 # not in G2 logic
                 if is_disconnected_now_from_G2():
@@ -169,5 +161,4 @@ if __name__ == "__main__":
         BACKGROUND_BINARIES_TO_RUN,
         ON_CONNECTION_SCRIPTS,
         ON_DISCONNECTION_SCRIPTS,
-        DNS_SCRIPTS,
     )

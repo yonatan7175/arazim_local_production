@@ -88,13 +88,6 @@ ON_DISCONNECTION_SCRIPTS = [
     ]
 ]
 
-DNS_SCRIPTS = [
-    [
-        PYTHON_BINARY,
-        os.path.join(CURRENT_DIRECTORY, "..", "dns", "domain_finder.py"),
-    ]
-]
-
 TIME_INTERVAL_BETWEEN_CHECKS = 2  # time interval in seconds
 PATH_TO_RUNNING_BINARIES_FILE = os.path.join(
     CURRENT_DIRECTORY, "current_running_binaries.json"
