@@ -1,0 +1,7 @@
+#!/bin/bash
+# Arazim Local launcher (Linux).
+#
+# This is a template. Running install/install.py rewrites the line below with
+# the correct Python interpreter and the absolute path to manager.py, then
+# symlinks this file into /usr/local/bin/arazim_local.
+python3 manager.py "$@"

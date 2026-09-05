@@ -108,7 +108,6 @@ def main(
     background_binaries_to_run,
     on_connection_scripts,
     on_disconnection_scripts,
-    network_name=G2_NETWORK_NAME,
 ):
     if is_manager_running(update=True):
         print("MANAGER: OTHER INSTANCE EXSISTS!!!")
@@ -156,6 +155,7 @@ def main(
 
 if __name__ == "__main__":
     premissions_stats.root_check()
+    premissions_stats.requirements_check()
     main(
         TIME_INTERVAL_BETWEEN_CHECKS,
         BACKGROUND_BINARIES_TO_RUN,

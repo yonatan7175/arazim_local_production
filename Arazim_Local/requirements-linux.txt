@@ -1,0 +1,9 @@
+# Python dependencies for Arazim Local on Linux.
+# Install (as root, so the sniffers/manager can see them when run with sudo):
+#     sudo python3 -m pip install -r requirements-linux.txt
+#
+# Everything else the project uses (fcntl, struct, select, socket, threading,
+# ipaddress, ctypes, ...) ships with the Python standard library.
+
+scapy>=2.6.1     # packet crafting/sniffing for the ICMP-reflection tunnel
+psutil>=5.9      # process discovery/management for the manager watchdog

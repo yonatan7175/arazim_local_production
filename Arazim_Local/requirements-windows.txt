@@ -1,0 +1,14 @@
+# Python dependencies for Arazim Local on Windows.
+# Install from an *Administrator* terminal so the elevated manager/sniffers
+# can see them:
+#     python -m pip install -r requirements-windows.txt
+#
+# Everything else the project uses (ctypes, struct, socket, threading,
+# ipaddress, ...) ships with the Python standard library.
+#
+# NOTE: pydivert also needs the WinDivert driver. The pip wheel bundles the
+# WinDivert DLL/sys, but the driver must be loadable (run elevated).
+
+scapy>=2.6.1     # packet crafting/sniffing
+psutil>=5.9      # process discovery/management for the manager watchdog
+pydivert>=2.1    # WinDivert bindings used by the Windows in/out sniffers
