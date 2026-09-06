@@ -1,11 +1,12 @@
 import sys
-from scapy.all import IP, Raw, conf
+from scapy.all import IP, Raw, ICMP, Ether, sendp, conf
 import pydivert
 import os
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 from utils.network_stats import *
 from sniffers.constants import *
+from manager.constants import G2_ROUTER_MAC
 
 
 def bpf_filter(network_stats: NetworkStats) -> str:
@@ -37,7 +38,13 @@ def handle_packet(packet, network_stats):
         / ICMP(type=8, code=0)
         / Raw(load=icmp_payload)
     )
-    send(icmp_packet, verbose=True)
+    # On some Windows hosts scapy's L3 send() can't consult the ARP cache / do
+    # ARP, so it egresses the frame with a broadcast dst MAC (ff:ff:ff:ff:ff:ff),
+    # which the G2 router drops. Send at L2 with an explicit Ethernet header
+    # addressed to the (constant) router MAC so the wrapper always reaches the
+    # gateway that reflects it back to the peer.
+    frame = Ether(dst=G2_ROUTER_MAC, src=network_stats.my_mac) / icmp_packet
+    sendp(frame, iface=network_stats.default_device, verbose=False)
 
 
 def main():

@@ -8,6 +8,11 @@
 #
 # NOTE: pydivert also needs the WinDivert driver. The pip wheel bundles the
 # WinDivert DLL/sys, but the driver must be loadable (run elevated).
+#
+# NOT INSTALLABLE BY PIP: scapy needs Npcap (wpcap.dll) for layer-2 sniffing and
+# sending. Install it from https://npcap.com/#download, ticking "WinPcap
+# API-compatible Mode". Without it every sniffer exits immediately with
+# "winpcap is not installed"; premissions_stats.npcap_check() gates on it.
 
 scapy>=2.6.1     # packet crafting/sniffing
 psutil>=5.9      # process discovery/management for the manager watchdog

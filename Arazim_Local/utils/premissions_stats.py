@@ -218,8 +218,53 @@ def requirements_check():
     sys.exit(1)
 
 
+# Where Npcap/WinPcap put wpcap.dll. Npcap's own directory is the modern layout;
+# System32 is used when Npcap is installed in "WinPcap API-compatible Mode" (and
+# by legacy WinPcap). A 32-bit interpreter is redirected to SysWOW64 by WOW64,
+# which is where Npcap installs its 32-bit copies, so these paths work for both.
+_WINDOWS_PCAP_DLLS = [
+    r"System32\Npcap\wpcap.dll",
+    r"System32\wpcap.dll",
+]
+
+NPCAP_DOWNLOAD_URL = "https://npcap.com/#download"
+
+
+def npcap_check():
+    """
+    Windows only: verify a libpcap provider (Npcap) is installed.
+
+    scapy needs wpcap.dll for layer-2 sniffing and sending; pip cannot supply it
+    because it is a kernel driver, not a Python package. Without it every sniffer
+    dies at startup with "Sniffing and sending packets is not available at layer
+    2: winpcap is not installed", and the manager's watchdog restarts them in a
+    loop. Fail here instead, with instructions.
+
+    Call this AFTER requirements_check(); a no-op on Linux/macOS, which sniff
+    through native sockets.
+    """
+    if platform.system() != "Windows":
+        return
+
+    system_root = os.environ.get("SystemRoot", r"C:\Windows")
+    for relative_path in _WINDOWS_PCAP_DLLS:
+        if os.path.isfile(os.path.join(system_root, relative_path)):
+            return
+
+    print("[-] Error: Npcap is not installed (no wpcap.dll found).")
+    print("[*] scapy needs it to sniff and send packets; it is a driver, not a")
+    print("    pip package, so requirements-windows.txt cannot install it.")
+    print(f"\n[*] Download and install Npcap from: {NPCAP_DOWNLOAD_URL}")
+    print("      - tick 'Install Npcap in WinPcap API-compatible Mode'")
+    print("      - leave 'Restrict Npcap driver's access to Administrators only'")
+    print("        as you like; this project already runs elevated")
+    print("[*] Then relaunch.")
+    sys.exit(1)
+
+
 # Usage in the code:
 if __name__ == "__main__":
     root_check()
     requirements_check()
+    npcap_check()
     print("[+] Permissions and dependencies verified. Starting NetworkStats...")

@@ -11,7 +11,9 @@ path, and exposes it as an easy entry point:
              so `arazim_local` is on the PATH.
              Run: sudo python3 install/install.py
   * Windows: deploy to %ProgramData%\\ArazimLocal, copy the launcher .bat to the
-             Desktop so it can be double-clicked.
+             Desktop so it can be double-clicked, and add the deployed
+             scripts\\Windows directory to the machine-wide PATH so
+             `arazim_local` also works from any terminal.
              Run from an Administrator prompt: python install\\install.py
              (or just run it; it will prompt for elevation via UAC).
 """
@@ -52,6 +54,52 @@ def _deploy(dest_dir):
     shutil.copytree(SRC_DIR, dest_dir, ignore=_COPY_IGNORE)
 
 
+# Machine-wide environment block. Values written here apply to every user, and
+# are picked up by processes started after the WM_SETTINGCHANGE broadcast below.
+_WINDOWS_ENV_KEY = r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+
+
+def _add_to_system_path(directory):
+    """
+    Append `directory` to the machine-wide PATH (HKLM), unless it is already
+    there. Windows only; assumes the process is elevated (HKLM is admin-only).
+
+    setx /M is deliberately avoided: it truncates PATH at 1024 characters and
+    flattens REG_EXPAND_SZ, so the registry is edited directly and the value's
+    original type is preserved.
+    """
+    import ctypes
+    import winreg
+
+    with winreg.OpenKey(
+        winreg.HKEY_LOCAL_MACHINE, _WINDOWS_ENV_KEY, 0, winreg.KEY_READ | winreg.KEY_WRITE
+    ) as key:
+        try:
+            current, value_type = winreg.QueryValueEx(key, "Path")
+        except FileNotFoundError:
+            current, value_type = "", winreg.REG_EXPAND_SZ
+
+        # Compare literally (entries may contain %vars%; expanding them here
+        # would risk baking a machine-specific path into the value we write).
+        wanted = os.path.normcase(os.path.normpath(directory))
+        entries = [entry for entry in current.split(";") if entry.strip()]
+        for entry in entries:
+            if os.path.normcase(os.path.normpath(entry.strip().strip('"'))) == wanted:
+                print(f"[*] Already on the system PATH: {directory}")
+                return
+
+        entries.append(directory)
+        winreg.SetValueEx(key, "Path", 0, value_type, ";".join(entries))
+
+    # Tell already-running shells/Explorer to reload the environment block;
+    # without this the new PATH only reaches processes started after a logoff.
+    # SMTO_ABORTIFHUNG (0x2) keeps a hung window from stalling the installer.
+    ctypes.windll.user32.SendMessageTimeoutW(
+        0xFFFF, 0x001A, 0, ctypes.c_wchar_p("Environment"), 0x0002, 5000, None
+    )
+    print(f"[+] Added to the system PATH: {directory}")
+
+
 def install_linux():
     # Same gate order as manager.py: privileges first, then dependencies. Both
     # exit on failure, so we only reach the copy once the environment is sane.
@@ -83,9 +131,12 @@ def install_linux():
 
 def install_windows():
     # Same gate order as manager.py: privileges first (root_check triggers the
-    # UAC elevation prompt if needed), then dependencies.
+    # UAC elevation prompt if needed), then dependencies. Npcap is checked here
+    # too, so a missing driver surfaces at install time rather than as a sniffer
+    # crash-loop on the first run.
     premissions_stats.root_check()
     premissions_stats.requirements_check()
+    premissions_stats.npcap_check()
 
     # Deploy under %ProgramData% (machine-wide, admin-writable, and space-free so
     # the manager's UAC self-elevation path stays clean).
@@ -109,11 +160,22 @@ def install_windows():
         desktop_bat = os.path.join(desktop, "arazim_local.bat")
         shutil.copyfile(launcher_path, desktop_bat)
         print(f"[+] Desktop launcher: {desktop_bat}")
-        print("[+] Installation complete. Double-click 'arazim_local' on your Desktop.")
     else:
         # Desktop may be redirected (e.g. OneDrive); the app is still installed.
         print(f"[!] Desktop not found at {desktop}; skipped the desktop copy.")
-        print(f"[+] Installation complete. Launcher: {launcher_path}")
+
+    # 4. Put the launcher's directory on the machine-wide PATH, so `arazim_local`
+    #    is callable from any terminal (the Windows analog of /usr/local/bin).
+    #    A failure here doesn't invalidate the install, so it only warns.
+    try:
+        _add_to_system_path(os.path.dirname(launcher_path))
+    except OSError as e:
+        print(f"[!] Could not update the system PATH: {e}")
+        print(f"[*] Add this directory manually: {os.path.dirname(launcher_path)}")
+
+    print("[+] Installation complete.")
+    print("[*] Double-click 'arazim_local' on your Desktop, or run 'arazim_local'")
+    print("    from a new Administrator terminal (open a new one to pick up PATH).")
 
 
 if __name__ == "__main__":

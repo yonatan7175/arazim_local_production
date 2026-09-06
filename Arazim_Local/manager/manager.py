@@ -156,6 +156,9 @@ def main(
 if __name__ == "__main__":
     premissions_stats.root_check()
     premissions_stats.requirements_check()
+    # No-op off Windows; there it stops us before the sniffers crash-loop on a
+    # missing wpcap.dll.
+    premissions_stats.npcap_check()
     main(
         TIME_INTERVAL_BETWEEN_CHECKS,
         BACKGROUND_BINARIES_TO_RUN,
