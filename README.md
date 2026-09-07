@@ -35,4 +35,4 @@ it). A shortcut to `arazim_local.bat` is also placed on the Desktop.
 
 ## Visiting the website
 
-Open Chrome and go to `arazim.local`.
+Open Chrome and go to `arazim.local`. or `172.16.164.101`
