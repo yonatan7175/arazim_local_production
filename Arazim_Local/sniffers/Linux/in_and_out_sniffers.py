@@ -9,7 +9,7 @@ import subprocess
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 from utils.network_stats import NetworkStats
-from sniffers.constants import TUN_NAME
+from sniffers.constants import TUN_NAME, PAYLOAD_MAGIC
 from in_sniffer import In_Sniffer
 from out_sniffer import Out_Sniffer
 
@@ -19,6 +19,14 @@ logger = logging.getLogger("arazim.tun")
 TUNSETIFF = 0x400454CA
 IFF_TUN = 0x0001
 IFF_NO_PI = 0x1000
+
+# Bytes the out-sniffer prepends to every packet it tunnels: the outer IP
+# header (20) + the ICMP echo header (8) + our magic marker. The TUN MTU must
+# be lowered by this much so a full-size inner packet, once wrapped, still fits
+# inside the physical NIC's MTU (otherwise sendp() hits EMSGSIZE / Errno 90).
+_WRAPPER_OVERHEAD = 20 + 8 + len(PAYLOAD_MAGIC)
+# Fallback physical MTU if we cannot read the outbound device's real MTU.
+_DEFAULT_LINK_MTU = 1500
 
 # ip route metric preferred for our TUN route
 PREFERRED_METRIC = "20"
@@ -42,10 +50,31 @@ def create_tun_interface(interface_name=b"tun%d"):
     return tun_fd, assigned_name
 
 
-def configure_interface(name, ip_cidr):
+def _get_link_mtu(device):
+    """Return the MTU of a physical device, or the default if it can't be read."""
+    try:
+        with open(f"/sys/class/net/{device}/mtu") as f:
+            return int(f.read().strip())
+    except (OSError, ValueError):
+        logger.warning(
+            "could not read MTU of %s, assuming %d", device, _DEFAULT_LINK_MTU
+        )
+        return _DEFAULT_LINK_MTU
+
+
+def configure_interface(name, ip_cidr, uplink_device=None):
     subprocess.run(["ip", "addr", "add", ip_cidr, "dev", name], check=True)
+    # Cap the TUN MTU so anything the local stack sends into it still fits in
+    # the uplink's MTU once the out-sniffer adds its ICMP wrapper. Without this
+    # a full 1500-byte packet becomes a 1533-byte frame and sendp() fails with
+    # "Message too long" (EMSGSIZE).
+    link_mtu = _get_link_mtu(uplink_device) if uplink_device else _DEFAULT_LINK_MTU
+    tun_mtu = link_mtu - _WRAPPER_OVERHEAD
+    subprocess.run(
+        ["ip", "link", "set", "dev", name, "mtu", str(tun_mtu)], check=True
+    )
     subprocess.run(["ip", "link", "set", "dev", name, "up"], check=True)
-    logger.info("interface %s is UP with IP %s", name, ip_cidr)
+    logger.info("interface %s is UP with IP %s (MTU %d)", name, ip_cidr, tun_mtu)
 
 
 def configure_routing_table(name, net_stats):
@@ -127,7 +156,7 @@ def main():
         logger.info("subnet is %s", ip_cidr)
 
         tun_fd, name = create_tun_interface(TUN_NAME)
-        configure_interface(name, ip_cidr)
+        configure_interface(name, ip_cidr, net_stats.default_device)
         configure_routing_table(name, net_stats)
 
         threads = [
