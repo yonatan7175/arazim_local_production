@@ -1,29 +1,38 @@
-## ARAZIM LOCAL 
+# Arazim Local
 
-### GOALS: 
-- #####  understand G2 network structure
-- ##### find communication primitives
-- ##### build a local webiste on G2
+## Goals
 
-### git structure: 
-- ##### ./wiki/drive contains a url to google drive with explenatiosns
-- ##### ./poc contains folder of the communication primitives
+- Understand the G2 network structure
+- Find communication primitives
+- Build a local website on G2
 
-### installation:
-- ##### install python
+## Repository structure
+
+- `./wiki/drive` — contains a URL to a Google Drive with explanations
+- `./poc` — contains folders of the communication primitives
+
+## Installation
+
+First, install Python. Then:
+
 ```bash
-git clone git@github.com:yonatannisemnew/arazim_local.git
-cd arazim_local
-sudo python3 install/install.py        # Linux
-python install\install.py              # Windows (prompts for UAC elevation)
+git clone https://github.com/yonatan7175/arazim_local_production.git
+cd arazim_local_production
+
+sudo python3 install/install.py     # Linux
+python install\install.py           # Windows (prompts for UAC elevation)
 ```
-- ##### what will happen?
-LINUX: the app is copied to /opt/Arazim_Local and `arazim_local` is symlinked into /usr/local/bin.
-WINDOWS: the app is copied to %ProgramData%\ArazimLocal, a launcher .bat is added to your desktop,
-and that launcher's folder is added to the system-wide PATH, so `arazim_local` also runs from any
-terminal (open a new one for the PATH change to take effect).
-a shell script will be added to your desktop. 
-double click it to lunch our dashboard 
-set the button to On when you want to browse on G2
-ON LINUX: it is possible to close the terminal window and keep working with the dashboard
-##### TO VISIT THE WEBSITE: search on chrome arazim.local
+
+### What happens?
+
+**Linux:** the app is copied to `/opt/Arazim_Local`, and `arazim_local` is
+symlinked into `/usr/local/bin`. To launch the CLI tool, open a terminal and
+run `arazim_local`.
+
+**Windows:** the app is copied to `%ProgramData%\ArazimLocal`, and
+`arazim_local.bat` is added to PATH (running `arazim_local.bat` in cmd launches
+it). A shortcut to `arazim_local.bat` is also placed on the Desktop.
+
+## Visiting the website
+
+Open Chrome and go to `arazim.local`.
